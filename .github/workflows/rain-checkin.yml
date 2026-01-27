@@ -1,0 +1,154 @@
+
+name: rainyun-checkin
+on:
+  workflow_dispatch:
+   
+  schedule:
+    - cron: "0 8 * * *"  # 每天8点
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rainyun-checkin
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      TZ: Asia/Shanghai
+      # 雨云账号配置 (必填)
+      RAINYUN_USER: ${{ secrets.RAINYUN_USER || '' }}
+      RAINYUN_PWD: ${{ secrets.RAINYUN_PWD || '' }}
+      
+      # 运行配置
+      TIMEOUT: ${{ vars.TIMEOUT || '15' }}
+      MAX_DELAY: ${{ vars.MAX_DELAY || '90' }}
+      DEBUG: ${{ vars.DEBUG || 'false' }}
+      CHROME_LOW_MEMORY: ${{ vars.CHROME_LOW_MEMORY || 'false' }}
+      
+      # 基础地址与版本 (可选)
+      APP_VERSION: ${{ vars.APP_VERSION || '2.5' }}
+      APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://app.rainyun.com' }}
+      API_BASE_URL: ${{ vars.API_BASE_URL || 'https://api.v2.rainyun.com' }}
+      COOKIE_FILE: ${{ vars.COOKIE_FILE || 'cookies.json' }}
+      POINTS_TO_CNY_RATE: ${{ vars.POINTS_TO_CNY_RATE || '2000' }}
+      
+      # 验证码与图片下载 (可选)
+      CAPTCHA_RETRY_LIMIT: ${{ vars.CAPTCHA_RETRY_LIMIT || '5' }}
+      DOWNLOAD_TIMEOUT: ${{ vars.DOWNLOAD_TIMEOUT || '10' }}
+      DOWNLOAD_MAX_RETRIES: ${{ vars.DOWNLOAD_MAX_RETRIES || '3' }}
+      DOWNLOAD_RETRY_DELAY: ${{ vars.DOWNLOAD_RETRY_DELAY || '2' }}
+      
+      # API 请求重试 (可选)
+      REQUEST_TIMEOUT: ${{ vars.REQUEST_TIMEOUT || '15' }}
+      MAX_RETRIES: ${{ vars.MAX_RETRIES || '3' }}
+      RETRY_DELAY: ${{ vars.RETRY_DELAY || '2' }}
+      
+      # 服务器管理功能 (可选)
+      RAINYUN_API_KEY: ${{ secrets.RAINYUN_API_KEY || '' }}
+      AUTO_RENEW: ${{ vars.AUTO_RENEW || 'true' }}
+      RENEW_THRESHOLD_DAYS: ${{ vars.RENEW_THRESHOLD_DAYS || '7' }}
+      RENEW_PRODUCT_IDS: ${{ secrets.RENEW_PRODUCT_IDS || '' }}
+      DEFAULT_RENEW_COST_7_DAYS: ${{ vars.DEFAULT_RENEW_COST_7_DAYS || '2258' }}
+      
+      # 推送服务 (可选)
+      TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN || '' }}
+      TG_USER_ID: ${{ secrets.TG_USER_ID || '' }}
+      HITOKOTO: ${{ vars.HITOKOTO || 'true' }}
+      CONSOLE: ${{ vars.CONSOLE || 'false' }}
+      SKIP_PUSH_TITLE: ${{ vars.SKIP_PUSH_TITLE || '' }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (optional)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (cache enabled)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          tags: rainyun-checkin:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run check-in in Docker
+        id: run_checkin
+        shell: bash
+        run: |
+          set -euo pipefail
+          container_name=rainyun-checkin
+          docker rm -f "${container_name}" >/dev/null 2>&1 || true
+
+          set +e
+          docker run --name "${container_name}" \
+            -e TZ="${TZ}" \
+            -e RAINYUN_USER="${RAINYUN_USER}" \
+            -e RAINYUN_PWD="${RAINYUN_PWD}" \
+            -e TIMEOUT="${TIMEOUT}" \
+            -e MAX_DELAY="${MAX_DELAY}" \
+            -e DEBUG="${DEBUG}" \
+            -e CHROME_LOW_MEMORY="${CHROME_LOW_MEMORY}" \
+            -e APP_VERSION="${APP_VERSION}" \
+            -e APP_BASE_URL="${APP_BASE_URL}" \
+            -e API_BASE_URL="${API_BASE_URL}" \
+            -e COOKIE_FILE="${COOKIE_FILE}" \
+            -e POINTS_TO_CNY_RATE="${POINTS_TO_CNY_RATE}" \
+            -e CAPTCHA_RETRY_LIMIT="${CAPTCHA_RETRY_LIMIT}" \
+            -e DOWNLOAD_TIMEOUT="${DOWNLOAD_TIMEOUT}" \
+            -e DOWNLOAD_MAX_RETRIES="${DOWNLOAD_MAX_RETRIES}" \
+            -e DOWNLOAD_RETRY_DELAY="${DOWNLOAD_RETRY_DELAY}" \
+            -e REQUEST_TIMEOUT="${REQUEST_TIMEOUT}" \
+            -e MAX_RETRIES="${MAX_RETRIES}" \
+            -e RETRY_DELAY="${RETRY_DELAY}" \
+            -e RAINYUN_API_KEY="${RAINYUN_API_KEY}" \
+            -e AUTO_RENEW="${AUTO_RENEW}" \
+            -e RENEW_THRESHOLD_DAYS="${RENEW_THRESHOLD_DAYS}" \
+            -e RENEW_PRODUCT_IDS="${RENEW_PRODUCT_IDS}" \
+            -e DEFAULT_RENEW_COST_7_DAYS="${DEFAULT_RENEW_COST_7_DAYS}" \
+            -e TG_BOT_TOKEN="${TG_BOT_TOKEN}" \
+            -e TG_USER_ID="${TG_USER_ID}" \
+            -e HITOKOTO="${HITOKOTO}" \
+            -e CONSOLE="${CONSOLE}" \
+            -e SKIP_PUSH_TITLE="${SKIP_PUSH_TITLE}" \
+            rainyun-checkin:latest
+          rc=$?
+          set -e
+          # 失败时打印容器日志，便于诊断
+          if [ "$rc" -ne 0 ]; then
+            echo "Container exited with code $rc. Showing logs:"
+            docker logs "${container_name}" || true
+          fi
+
+          docker rm -f "${container_name}" >/dev/null 2>&1 || true
+
+          # 正确写入步骤输出
+          echo "exit_code=${rc}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload debug artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-artifacts
+          path: run_artifacts
+          if-no-files-found: ignore
+
+      - name: Fail if container failed
+        if: always()
+        shell: bash
+        run: |
+          exit_code='${{ steps.run_checkin.outputs.exit_code }}'
+          if [ -z "${exit_code}" ]; then exit_code=1; fi
+          echo "Exit code: ${exit_code}"
+          if [ "${exit_code}" -ne 0 ]; then
+            exit "${exit_code}"
+          fi
