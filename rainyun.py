@@ -468,7 +468,7 @@ def run():
     try:
         # 从环境变量读取配置
         timeout = int(os.environ.get("TIMEOUT", "15"))
-        max_delay = int(os.environ.get("MAX_DELAY", "90"))
+        max_delay = int(os.environ.get("MAX_DELAY", "10"))
         user = os.environ.get("RAINYUN_USER", "")
         pwd = os.environ.get("RAINYUN_PWD", "")
         debug = os.environ.get("DEBUG", "false").lower() == "true"
@@ -495,7 +495,7 @@ def run():
                 logger.warning(f"获取初始积分失败: {e}")
 
         delay = random.randint(0, max_delay)
-        delay_sec = random.randint(0, 60)
+        delay_sec = random.randint(0, 59)
         if not debug:
             logger.info(f"随机延时等待 {delay} 分钟 {delay_sec} 秒")
             time.sleep(delay * 60 + delay_sec)
