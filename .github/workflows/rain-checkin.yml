@@ -25,7 +25,7 @@ jobs:
       
       # 运行配置
       TIMEOUT: ${{ vars.TIMEOUT || '15' }}
-      MAX_DELAY: ${{ vars.MAX_DELAY || '90' }}
+      MAX_DELAY: ${{ vars.MAX_DELAY || '10' }}
       DEBUG: ${{ vars.DEBUG || 'false' }}
       CHROME_LOW_MEMORY: ${{ vars.CHROME_LOW_MEMORY || 'false' }}
       
