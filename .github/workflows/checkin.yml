@@ -1,0 +1,33 @@
+# 文件: .github/workflows/ci.yml
+name: Checkin
+
+# 触发条件
+on:
+    workflow_dispatch:
+    # 定时执行
+    schedule:
+      - cron: '0 8 * * *'
+
+# 工作
+jobs:
+  checkin:
+    runs-on: ubuntu-latest  # 使用 16GB 内存的 Linux
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      
+    - name: 设置 Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        
+    - name: 安装依赖
+      run: pip install -r requirements.txt
+      
+    - name: 运行
+      run: python -u 0x6768/rainyun.py
+      env:
+        RAINYUN_USER: ${{ secrets.RAINYUN_USER }}
+        RAINYUN_PWD: ${{ secrets.RAINYUN_PWD }}
+        # TIMEOUT: ${{ secrets.TIMEOUT }}
