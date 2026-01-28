@@ -5,8 +5,8 @@ name: Checkin
 on:
     workflow_dispatch:
     # 定时执行
-    schedule:
-      - cron: '0 8 * * *'
+   # schedule:
+   #   - cron: '0 8 * * *'
 
 # 工作
 jobs:
