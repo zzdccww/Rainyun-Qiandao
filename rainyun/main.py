@@ -85,9 +85,9 @@ class LazyDdddOcr:
 try:
     from .notify import configure, send
 
-    print("✅ 通知模块加载成功")
+    print("通知模块加载成功")
 except Exception as e:
-    print(f"⚠️ 通知模块加载失败：{e}")
+    print(f"通知模块加载失败：{e}")
 
     def configure(_config: Config) -> None:
         pass
@@ -101,9 +101,9 @@ _server_manager_error = None
 try:
     from .server.manager import ServerManager
 
-    print("✅ 服务器管理模块加载成功")
+    print("服务器管理模块加载成功")
 except Exception as e:
-    print(f"⚠️ 服务器管理模块加载失败：{e}")
+    print(f"服务器管理模块加载失败：{e}")
     _server_manager_error = str(e)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 # 配置 logger

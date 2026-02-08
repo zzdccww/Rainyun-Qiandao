@@ -47,7 +47,7 @@ COPY entrypoint.sh .
 # 转换 Windows 换行符为 Unix 格式，并设置执行权限
 RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
-# 仅保留运行层环境变量（业务配置全部走 Web 面板）
+# 仅保留运行层环境变量
 # 定时模式配置（默认开启）
 ENV CRON_MODE=true
 # Chromium 路径（Debian 系统）
@@ -55,13 +55,7 @@ ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
 # Chrome 低内存模式（适用于 1核1G 小鸡）
 ENV CHROME_LOW_MEMORY=false
-# Web 面板配置
-ENV WEB_ENABLED=true
-ENV WEB_HOST=0.0.0.0
-ENV WEB_PORT=8000
 ENV DATA_PATH=data/config.json
 
-EXPOSE 8000
-
-# 启动脚本（Web 面板 / 定时模式）
+# 启动脚本（定时模式 / 单次执行）
 CMD ["/app/entrypoint.sh"]

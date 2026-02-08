@@ -8,10 +8,6 @@ services:
     env_file:
       - .env
     environment:
-      # Web 面板（强制开启）
-      - WEB_ENABLED=true
-      - WEB_HOST=${WEB_HOST:-0.0.0.0}
-      - WEB_PORT=${WEB_PORT:-8000}
       - DATA_PATH=${DATA_PATH:-data/config.json}
       # 定时模式（默认开启）
       - CRON_MODE=true
@@ -19,8 +15,6 @@ services:
       - CHROME_BIN=${CHROME_BIN:-/usr/bin/chromium}
       - CHROMEDRIVER_PATH=${CHROMEDRIVER_PATH:-/usr/bin/chromedriver}
       - CHROME_LOW_MEMORY=${CHROME_LOW_MEMORY:-false}
-    ports:
-      - "${WEB_PORT:-8000}:8000"
     volumes:
       - ./data:/app/data                    # 持久化数据
       - ./temp:/app/temp                    # 临时文件目录

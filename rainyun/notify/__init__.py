@@ -4,7 +4,6 @@ import logging
 import re
 import threading
 
-from rainyun.notify.channels import _as_bool, one
 from rainyun.notify.registry import DEFAULT_REGISTRY
 from rainyun.notify.state import (
     configure,
@@ -18,9 +17,7 @@ from rainyun.notify.state import (
 logger = logging.getLogger(__name__)
 
 
-def _compose_content(base_content: str, config: dict) -> str:
-    if _as_bool(config.get("HITOKOTO"), default=True):
-        return base_content + "\n\n" + one()
+def _compose_content(base_content: str, _config: dict) -> str:
     return base_content
 
 
