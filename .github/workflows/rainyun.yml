@@ -22,53 +22,25 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Chromium
+      - name: Set up Chrome
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          install-chromedriver: true
+
+      - name: Export Chrome paths
         run: |
-          sudo apt-get update
-          sudo apt-get install -y chromium chromium-driver
-          CHROME_BIN=""
-          for candidate in \
-            /usr/bin/chromium \
-            /usr/bin/chromium-browser \
-            /usr/lib/chromium/chromium \
-            /usr/lib/chromium-browser/chromium-browser \
-            /snap/bin/chromium
-          do
-            if [ -x "$candidate" ] && "$candidate" --version >/dev/null 2>&1; then
-              CHROME_BIN="$candidate"
-              break
-            fi
-          done
-          if [ -z "$CHROME_BIN" ]; then
-            echo "Chromium binary not found"
-            exit 1
-          fi
-          CHROMEDRIVER_PATH="$(command -v chromedriver || true)"
-          if [ -z "$CHROMEDRIVER_PATH" ]; then
-            for candidate in \
-              /usr/bin/chromedriver \
-              /usr/lib/chromium/chromedriver \
-              /usr/lib/chromium-browser/chromedriver
-            do
-              if [ -x "$candidate" ]; then
-                CHROMEDRIVER_PATH="$candidate"
-                break
-              fi
-            done
-          fi
-          if [ -z "$CHROMEDRIVER_PATH" ]; then
-            echo "ChromeDriver not found"
-            exit 1
-          fi
-          echo "CHROME_BIN=$CHROME_BIN" >> "$GITHUB_ENV"
-          echo "CHROMEDRIVER_PATH=$CHROMEDRIVER_PATH" >> "$GITHUB_ENV"
-          "$CHROME_BIN" --version
-          "$CHROMEDRIVER_PATH" --version
+          echo "CHROME_BIN=${{ steps.setup-chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
+          echo "CHROMEDRIVER_PATH=${{ steps.setup-chrome.outputs.chromedriver-path }}" >> "$GITHUB_ENV"
+          "${{ steps.setup-chrome.outputs.chrome-path }}" --version
+          "${{ steps.setup-chrome.outputs.chromedriver-path }}" --version
 
       - name: Debug Chromium paths
         run: |
           echo "CHROME_BIN=$CHROME_BIN"
           echo "CHROMEDRIVER_PATH=$CHROMEDRIVER_PATH"
+          which chromium || true
+          which google-chrome || true
           ls -l /usr/bin/chromium* /usr/lib/chromium* /snap/bin/chromium /usr/bin/google-chrome* || true
 
       - name: Install dependencies
