@@ -11,8 +11,6 @@ jobs:
     env:
       TZ: Asia/Shanghai
       DATA_PATH: data/config.json
-      CHROME_BIN: /usr/bin/chromium
-      CHROMEDRIVER_PATH: /usr/bin/chromedriver
       CHROME_LOW_MEMORY: "false"
       LOG_LEVEL: INFO
     steps:
