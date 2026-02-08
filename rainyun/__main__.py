@@ -4,7 +4,7 @@ import sys
 
 
 def main() -> int:
-    sys.stderr.write("CLI 已废弃，请使用 Web 面板或定时模式运行。\n")
+    sys.stderr.write("CLI 已废弃，请使用 GitHub Actions 或 cron_runner 运行。\n")
     return 1
 
 

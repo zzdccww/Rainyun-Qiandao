@@ -1,0 +1,125 @@
+name: Rainyun Checkin
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Shanghai
+      DATA_PATH: data/config.json
+      CHROME_BIN: /usr/bin/chromium
+      CHROMEDRIVER_PATH: /usr/bin/chromedriver
+      CHROME_LOW_MEMORY: "false"
+      LOG_LEVEL: INFO
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Chromium
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium chromium-driver
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+
+      - name: Build config.json from secrets
+        env:
+          RAINYUN_USER: ${{ secrets.RAINYUN_USER }}
+          RAINYUN_PWD: ${{ secrets.RAINYUN_PWD }}
+          RAINYUN_API_KEY: ${{ secrets.RAINYUN_API_KEY }}
+          RAINYUN_ACCOUNT_ID: ${{ secrets.RAINYUN_ACCOUNT_ID }}
+          RAINYUN_ACCOUNT_NAME: ${{ secrets.RAINYUN_ACCOUNT_NAME }}
+          AUTO_RENEW: ${{ secrets.AUTO_RENEW }}
+          RENEW_THRESHOLD_DAYS: ${{ secrets.RENEW_THRESHOLD_DAYS }}
+          RENEW_PRODUCT_IDS: ${{ secrets.RENEW_PRODUCT_IDS }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_USER_ID: ${{ secrets.TG_USER_ID }}
+          TG_API_HOST: ${{ secrets.TG_API_HOST }}
+          TG_PROXY_HOST: ${{ secrets.TG_PROXY_HOST }}
+          TG_PROXY_PORT: ${{ secrets.TG_PROXY_PORT }}
+          TG_PROXY_AUTH: ${{ secrets.TG_PROXY_AUTH }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          def as_bool(value: str | None, default: bool) -> bool:
+              if value is None or value == "":
+                  return default
+              return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+          def as_int(value: str | None, default: int) -> int:
+              if value is None or value == "":
+                  return default
+              try:
+                  return int(value)
+              except ValueError:
+                  return default
+
+          def parse_ids(value: str | None) -> list[int]:
+              if not value:
+                  return []
+              result = []
+              for item in value.split(","):
+                  item = item.strip()
+                  if not item:
+                      continue
+                  if item.isdigit():
+                      result.append(int(item))
+              return result
+
+          user = os.environ.get("RAINYUN_USER", "")
+          pwd = os.environ.get("RAINYUN_PWD", "")
+          if not user or not pwd:
+              raise SystemExit("RAINYUN_USER/RAINYUN_PWD is required")
+
+          account = {
+              "id": os.environ.get("RAINYUN_ACCOUNT_ID", ""),
+              "name": os.environ.get("RAINYUN_ACCOUNT_NAME", ""),
+              "username": user,
+              "password": pwd,
+              "api_key": os.environ.get("RAINYUN_API_KEY", ""),
+              "enabled": True,
+              "auto_renew": as_bool(os.environ.get("AUTO_RENEW"), True),
+              "renew_products": parse_ids(os.environ.get("RENEW_PRODUCT_IDS")),
+          }
+
+          settings = {
+              "auto_renew": as_bool(os.environ.get("AUTO_RENEW"), True),
+              "renew_threshold_days": as_int(os.environ.get("RENEW_THRESHOLD_DAYS"), 7),
+              "notify_config": {
+                  "TG_BOT_TOKEN": os.environ.get("TG_BOT_TOKEN", ""),
+                  "TG_USER_ID": os.environ.get("TG_USER_ID", ""),
+                  "TG_API_HOST": os.environ.get("TG_API_HOST", ""),
+                  "TG_PROXY_HOST": os.environ.get("TG_PROXY_HOST", ""),
+                  "TG_PROXY_PORT": os.environ.get("TG_PROXY_PORT", ""),
+                  "TG_PROXY_AUTH": os.environ.get("TG_PROXY_AUTH", ""),
+              },
+          }
+
+          data = {
+              "version": 1,
+              "accounts": [account],
+              "settings": settings,
+          }
+
+          path = Path("data/config.json")
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+          PY
+
+      - name: Run scheduled job
+        run: python -m rainyun.scheduler.cron_runner

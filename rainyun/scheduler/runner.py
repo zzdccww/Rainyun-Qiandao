@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import logging
-import random
-import time
 import os
 import shutil
 from dataclasses import dataclass, replace
@@ -87,18 +85,8 @@ class MultiAccountRunner:
         det = LazyDdddOcr(det=True)
         return base_config, session, driver, wait, temp_dir, ocr, det
 
-    def _apply_random_delay(self, settings: Any) -> None:
-        debug = getattr(settings, "debug", False)
-        max_delay = getattr(settings, "max_delay", 0)
-        if debug:
-            logger.info("调试模式已开启，跳过随机延时")
-            return
-        if not isinstance(max_delay, int) or max_delay <= 0:
-            return
-        delay_min = random.randint(0, max_delay)
-        delay_sec = random.randint(0, 60)
-        logger.info("随机延时等待 %s 分钟 %s 秒", delay_min, delay_sec)
-        time.sleep(delay_min * 60 + delay_sec)
+    def _apply_random_delay(self, _settings: Any) -> None:
+        return
 
     def _close_session(self, session: BrowserSession, temp_dir: str | None, base_config: Config) -> None:
         session.close()

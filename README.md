@@ -1,89 +1,72 @@
-# 雨云自动签到（Web 面板版）
+# 雨云自动签到（GHA 版）
 
-雨云每日自动签到工具，Docker 一键部署，配置统一走 Web 面板，支持多账户与自动续费。
+雨云每日自动签到工具，使用 GitHub Actions 定时运行，支持单账号签到、服务器到期检测与自动续费，并通过 Telegram 通知结果。
+
+> WebUI 已移除，配置统一通过 GitHub Secrets 传入。
 
 ## 功能特性
 
-- ✅ 多账户管理（账号/密码/API Key/续费白名单）
-- ✅ 定时签到（容器内 cron）
-- ✅ 服务器到期检查与自动续费
-- ✅ 多渠道通知（Web 高级设置）
-- ✅ Docker 容器化部署
+- 单账号签到（用户名/密码）
+- 服务器到期检查与自动续费（API Key 可选）
+- Telegram 通知
+- GitHub Actions 定时运行
 
-## 快速开始（Docker）
+## 快速开始（GitHub Actions）
 
-```bash
-# 1. 准备环境变量
-cp .env.example .env
+1. Fork 本仓库。
+2. 进入仓库 Settings → Secrets and variables → Actions，添加下方 secrets。
+3. 进入 Actions，手动触发 `Rainyun Checkin` workflow（workflow_dispatch）。
+4. 定时触发：默认 UTC 00:00（北京时间 08:00）。
 
-# 2. 构建并启动
-docker compose up -d --build
-```
+## Secrets 列表
 
-打开浏览器访问：
-```
-http://localhost:8000
-```
+### 必填
 
-首次登录会初始化管理密码，后续使用该密码登录。
+- `RAINYUN_USER`：雨云账号用户名
+- `RAINYUN_PWD`：雨云账号密码
+- `TG_BOT_TOKEN`：Telegram Bot Token
+- `TG_USER_ID`：Telegram Chat ID
 
-## Web 面板说明
+### 可选
 
-### 账户管理
-- 添加账号、密码、API Key（用于服务器管理）
-- 设置续费白名单（产品 ID 列表）
-- 启用/禁用单个账户
+- `RAINYUN_API_KEY`：用于服务器到期检测与自动续费
+- `RAINYUN_ACCOUNT_ID`：账号 ID（用于区分与 cookie 文件名）
+- `RAINYUN_ACCOUNT_NAME`：账号备注名
+- `AUTO_RENEW`：是否自动续费（true/false，默认 true）
+- `RENEW_THRESHOLD_DAYS`：续费阈值天数（默认 7）
+- `RENEW_PRODUCT_IDS`：续费白名单（逗号分隔的产品 ID）
+- `TG_API_HOST`：Telegram API 代理
+- `TG_PROXY_HOST` / `TG_PROXY_PORT` / `TG_PROXY_AUTH`：Telegram 代理设置
 
-### 系统设置
-- 自动续费开关与阈值
-- 定时表达式（cron），保存后自动写入 `/etc/cron.d/rainyun`
+## 运行说明
 
-### 高级设置（建议）
-- 通知渠道（`notify_channels` 数组，支持多通道）
-- 跳过推送标题（换行分隔）
-- 超时/重试/验证码/下载策略
+- 定时触发使用 UTC 时间：`0 0 * * *` 即北京时间每天 08:00。
+- 也可在 Actions 页面手动触发 workflow_dispatch。
 
-
-## 环境变量（仅运行层）
-
-> 业务配置已全部迁移至 Web 面板，env 只保留运行/部署参数。
-
-| 变量名 | 默认值 | 说明 |
-|--------|--------|------|
-| WEB_ENABLED | true | Web 面板开关 |
-| WEB_HOST | 0.0.0.0 | Web 绑定地址 |
-| WEB_PORT | 8000 | Web 端口 |
-| DATA_PATH | data/config.json | 数据文件路径 |
-| CRON_MODE | true | 定时模式开关（默认开启） |
-| CHROME_BIN | /usr/bin/chromium | Chromium 路径 |
-| CHROMEDRIVER_PATH | /usr/bin/chromedriver | chromedriver 路径 |
-| CHROME_LOW_MEMORY | false | 低内存模式 |
-
-## 数据与备份
-
-默认数据文件：`data/config.json`  
-Cookies 存储：`data/cookies/`  
-建议将 `./data` 挂载为 volume，避免容器重建丢失配置。
-
-## 项目结构
+## 项目结构（简化）
 
 ```
 rainyun/
-├── web/              # FastAPI Web 面板与 API
-│   ├── routes/       # 账户/服务器/系统设置/日志等接口
-│   └── static/       # 前端页面（HTML/JS/CSS）
 ├── scheduler/        # 定时任务（cron 执行/多账户运行器）
 ├── browser/          # Selenium 浏览器（登录/签到/验证码）
-├── notify/           # 多渠道通知（20+ 推送通道）
+├── notify/           # Telegram 通知
 ├── server/           # 服务器管理与自动续费
 ├── data/             # 数据模型与存储（Account/Settings）
 └── api/              # 雨云 API 客户端封装
 ```
 
-核心流程：
-1. **定时任务**：cron 触发 → `scheduler/cron_runner.py` → 执行签到 + 续费 → 推送通知
-2. **账号隔离**：每个账号独立 cookie 文件（`cookies_<id>.json`）
-3. **通知渠道**：支持同时配置多个推送渠道（Server酱/TG/Bark等）
+## 常见问题
+
+### 一键签到报 “Unable to obtain driver for chrome”
+请确认 workflow 已安装 chromium 与 chromium-driver，并设置：
+
+```
+CHROME_BIN=/usr/bin/chromium
+CHROMEDRIVER_PATH=/usr/bin/chromedriver
+```
+
+### cookies 在哪里
+每个账号独立保存：`data/cookies/cookies_<account_id>.json`
 
 ## 致谢
 
@@ -94,20 +77,3 @@ rainyun/
 | 原版 | SerendipityR | https://github.com/SerendipityR-2022/Rainyun-Qiandao | 初始 Python 版本 |
 | 二改 | fatekey | https://github.com/fatekey/Rainyun-Qiandao | Docker 化改造 |
 | 三改 | Jielumoon | 本仓库 | Web面板+多通知渠道+稳定性优化+自动续费 |
-
-## 常见问题
-
-### 一键签到报 “Unable to obtain driver for chrome”
-请确认容器内存在 chromedriver，并配置正确路径：
-```
-CHROME_BIN=/usr/bin/chromium
-CHROMEDRIVER_PATH=/usr/bin/chromedriver
-```
-
-### cookies 在哪里
-每个账号独立保存：`data/cookies/cookies_<account_id>.json`  
-若账号未设置 ID，会用账号名/用户名哈希作为文件名。
-
-
-### 修改 Web 设置后不生效
-Web 设置会直接写入 `data/config.json`，无需重启容器。 
