@@ -2,6 +2,7 @@
 
 import logging
 import os
+import shutil
 import tempfile
 from dataclasses import dataclass
 
@@ -80,8 +81,36 @@ class BrowserSession:
                 ops.add_argument("--disable-software-rasterizer")
                 ops.add_argument("--js-flags=--max-old-space-size=256")
             # 设置 Chromium 二进制路径（支持 ARM 和 AMD64）
-            if self.config.chrome_bin and os.path.exists(self.config.chrome_bin):
-                ops.binary_location = self.config.chrome_bin
+            chrome_bin = self.config.chrome_bin
+            if chrome_bin and os.path.exists(chrome_bin):
+                ops.binary_location = chrome_bin
+            else:
+                chrome_candidates = [
+                    "/usr/bin/chromium",
+                    "/usr/bin/chromium-browser",
+                    "/usr/lib/chromium/chromium",
+                    "/usr/lib/chromium-browser/chromium-browser",
+                    "/snap/bin/chromium",
+                    "/usr/bin/google-chrome",
+                    "/usr/bin/google-chrome-stable",
+                    "/opt/google/chrome/chrome",
+                ]
+                for candidate in chrome_candidates:
+                    if os.path.exists(candidate):
+                        ops.binary_location = candidate
+                        break
+                if not ops.binary_location:
+                    for name in [
+                        "chromium",
+                        "chromium-browser",
+                        "google-chrome",
+                        "google-chrome-stable",
+                        "chrome",
+                    ]:
+                        resolved = shutil.which(name)
+                        if resolved:
+                            ops.binary_location = resolved
+                            break
             # 容器环境使用系统 chromedriver
             driver_path = self.config.chromedriver_path
             if not os.path.exists(driver_path):
