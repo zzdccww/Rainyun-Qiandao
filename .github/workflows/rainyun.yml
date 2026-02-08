@@ -28,8 +28,44 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y chromium chromium-driver
-          echo "CHROME_BIN=$(command -v chromium || command -v chromium-browser)" >> "$GITHUB_ENV"
-          echo "CHROMEDRIVER_PATH=$(command -v chromedriver)" >> "$GITHUB_ENV"
+          CHROME_BIN=""
+          for candidate in \
+            /usr/bin/chromium \
+            /usr/bin/chromium-browser \
+            /usr/lib/chromium/chromium \
+            /usr/lib/chromium-browser/chromium-browser \
+            /snap/bin/chromium
+          do
+            if [ -x "$candidate" ] && "$candidate" --version >/dev/null 2>&1; then
+              CHROME_BIN="$candidate"
+              break
+            fi
+          done
+          if [ -z "$CHROME_BIN" ]; then
+            echo "Chromium binary not found"
+            exit 1
+          fi
+          CHROMEDRIVER_PATH="$(command -v chromedriver || true)"
+          if [ -z "$CHROMEDRIVER_PATH" ]; then
+            for candidate in \
+              /usr/bin/chromedriver \
+              /usr/lib/chromium/chromedriver \
+              /usr/lib/chromium-browser/chromedriver
+            do
+              if [ -x "$candidate" ]; then
+                CHROMEDRIVER_PATH="$candidate"
+                break
+              fi
+            done
+          fi
+          if [ -z "$CHROMEDRIVER_PATH" ]; then
+            echo "ChromeDriver not found"
+            exit 1
+          fi
+          echo "CHROME_BIN=$CHROME_BIN" >> "$GITHUB_ENV"
+          echo "CHROMEDRIVER_PATH=$CHROMEDRIVER_PATH" >> "$GITHUB_ENV"
+          "$CHROME_BIN" --version
+          "$CHROMEDRIVER_PATH" --version
 
       - name: Install dependencies
         run: |
