@@ -12,6 +12,8 @@ jobs:
       TZ: Asia/Shanghai
       DATA_PATH: data/config.json
       CHROME_LOW_MEMORY: "false"
+      CHROME_HEADLESS_MODE: "new"
+      CHROMEDRIVER_LOG_PATH: "/tmp/chromedriver.log"
       LOG_LEVEL: INFO
     steps:
       - name: Checkout
@@ -137,3 +139,13 @@ jobs:
 
       - name: Run scheduled job
         run: python -m rainyun.scheduler.cron_runner
+
+      - name: Output chromedriver log on failure
+        if: failure()
+        run: |
+          if [ -f "$CHROMEDRIVER_LOG_PATH" ]; then
+            echo "chromedriver log found at $CHROMEDRIVER_LOG_PATH"
+            cat "$CHROMEDRIVER_LOG_PATH"
+          else
+            echo "chromedriver log not found at $CHROMEDRIVER_LOG_PATH"
+          fi

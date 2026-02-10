@@ -63,7 +63,11 @@ class BrowserSession:
         if self.debug:
             ops.add_experimental_option("detach", True)
         if self.linux:
-            ops.add_argument("--headless")
+            headless_mode = os.environ.get("CHROME_HEADLESS_MODE")
+            if headless_mode == "new":
+                ops.add_argument("--headless=new")
+            else:
+                ops.add_argument("--headless")
             ops.add_argument("--disable-gpu")
             ops.add_argument("--disable-dev-shm-usage")
             # 低配模式：适用于 1核1G 小鸡
@@ -125,8 +129,41 @@ class BrowserSession:
                         driver_path = candidate
                         break
             if os.path.exists(driver_path):
+                service_args = None
+                log_output = None
+                chromedriver_log_path = os.environ.get("CHROMEDRIVER_LOG_PATH")
+                if chromedriver_log_path:
+                    service_args = ["--verbose", f"--log-path={chromedriver_log_path}"]
+                    log_output = chromedriver_log_path
+                if service_args:
+                    return webdriver.Chrome(
+                        service=Service(driver_path, service_args=service_args, log_output=log_output),
+                        options=ops,
+                    )
                 return webdriver.Chrome(service=Service(driver_path), options=ops)
+            service_args = None
+            log_output = None
+            chromedriver_log_path = os.environ.get("CHROMEDRIVER_LOG_PATH")
+            if chromedriver_log_path:
+                service_args = ["--verbose", f"--log-path={chromedriver_log_path}"]
+                log_output = chromedriver_log_path
+            if service_args:
+                return webdriver.Chrome(
+                    service=Service("./chromedriver", service_args=service_args, log_output=log_output),
+                    options=ops,
+                )
             return webdriver.Chrome(service=Service("./chromedriver"), options=ops)
+        service_args = None
+        log_output = None
+        chromedriver_log_path = os.environ.get("CHROMEDRIVER_LOG_PATH")
+        if chromedriver_log_path:
+            service_args = ["--verbose", f"--log-path={chromedriver_log_path}"]
+            log_output = chromedriver_log_path
+        if service_args:
+            return webdriver.Chrome(
+                service=Service("chromedriver.exe", service_args=service_args, log_output=log_output),
+                options=ops,
+            )
         return webdriver.Chrome(service=Service("chromedriver.exe"), options=ops)
 
     def _apply_stealth(self, driver: WebDriver) -> None:
