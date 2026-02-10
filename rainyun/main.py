@@ -66,10 +66,22 @@ class LazyDdddOcr:
         if self._instance is None:
             if self._det:
                 logging.getLogger(__name__).info(f"{_get_log_prefix()}初始化 ddddocr(det)")
-                self._instance = ddddocr.DdddOcr(det=True, show_ad=False)
+                try:
+                    self._instance = ddddocr.DdddOcr(det=True, show_ad=False)
+                except TypeError:
+                    try:
+                        self._instance = ddddocr.DdddOcr(det=True)
+                    except TypeError:
+                        self._instance = ddddocr.DdddOcr()
             else:
                 logging.getLogger(__name__).info(f"{_get_log_prefix()}初始化 ddddocr(ocr)")
-                self._instance = ddddocr.DdddOcr(ocr=True, show_ad=False)
+                try:
+                    self._instance = ddddocr.DdddOcr(ocr=True, show_ad=False)
+                except TypeError:
+                    try:
+                        self._instance = ddddocr.DdddOcr(ocr=True)
+                    except TypeError:
+                        self._instance = ddddocr.DdddOcr()
         return self._instance
 
     def classification(self, image_bytes: bytes):
