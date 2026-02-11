@@ -64,6 +64,13 @@ class LazyDdddOcr:
 
     def _ensure(self) -> ddddocr.DdddOcr:
         if self._instance is None:
+            try:
+                from PIL import Image
+
+                if not hasattr(Image, "ANTIALIAS") and hasattr(Image, "Resampling"):
+                    Image.ANTIALIAS = Image.Resampling.LANCZOS
+            except Exception:
+                pass
             if self._det:
                 logging.getLogger(__name__).info(f"{_get_log_prefix()}初始化 ddddocr(det)")
                 try:
