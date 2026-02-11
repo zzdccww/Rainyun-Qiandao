@@ -61,6 +61,7 @@ class LazyDdddOcr:
     def __init__(self, *, det: bool = False) -> None:
         self._det = det
         self._instance: ddddocr.DdddOcr | None = None
+        self._det_supported: bool | None = None
 
     def _ensure(self) -> ddddocr.DdddOcr:
         if self._instance is None:
@@ -75,11 +76,14 @@ class LazyDdddOcr:
                 logging.getLogger(__name__).info(f"{_get_log_prefix()}初始化 ddddocr(det)")
                 try:
                     self._instance = ddddocr.DdddOcr(det=True, show_ad=False)
+                    self._det_supported = True
                 except TypeError:
                     try:
                         self._instance = ddddocr.DdddOcr(det=True)
+                        self._det_supported = True
                     except TypeError:
                         self._instance = ddddocr.DdddOcr()
+                        self._det_supported = False
             else:
                 logging.getLogger(__name__).info(f"{_get_log_prefix()}初始化 ddddocr(ocr)")
                 try:
@@ -99,7 +103,12 @@ class LazyDdddOcr:
     def detection(self, image_bytes: bytes):
         if not self._det:
             raise AttributeError("当前实例为 ocr 模式，无法调用 detection")
-        return self._ensure().detection(image_bytes)
+        if self._det_supported is False:
+            raise AttributeError("当前 ddddocr 不支持 detection")
+        instance = self._ensure()
+        if not hasattr(instance, "detection"):
+            raise AttributeError("当前 ddddocr 不支持 detection")
+        return instance.detection(image_bytes)
 
 try:
     from .notify import configure, send
@@ -352,6 +361,10 @@ def detect_captcha_bboxes(
                 logger.info(f"{prefix}验证码检测成功({label}): {len(bboxes)} 个候选框")
                 return bboxes
             logger.warning(f"{prefix}验证码检测结果为空({label})")
+        except AttributeError as e:
+            if str(e) == "当前 ddddocr 不支持 detection":
+                return []
+            logger.warning(f"{prefix}验证码检测失败({label}): {e}")
         except Exception as e:
             logger.warning(f"{prefix}验证码检测失败({label}): {e}")
     return []
