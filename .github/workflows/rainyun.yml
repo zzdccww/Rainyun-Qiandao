@@ -13,42 +13,11 @@ jobs:
       DATA_PATH: data/config.json
       CHROME_LOW_MEMORY: "false"
       CHROME_HEADLESS_MODE: "new"
-      CHROMEDRIVER_LOG_PATH: "/tmp/chromedriver.log"
+      CHROMEDRIVER_LOG_PATH: "/logs/chromedriver.log"
       LOG_LEVEL: INFO
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Set up Chrome
-        id: setup-chrome
-        uses: browser-actions/setup-chrome@v1
-        with:
-          install-chromedriver: true
-
-      - name: Export Chrome paths
-        run: |
-          echo "CHROME_BIN=${{ steps.setup-chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
-          echo "CHROMEDRIVER_PATH=${{ steps.setup-chrome.outputs.chromedriver-path }}" >> "$GITHUB_ENV"
-          "${{ steps.setup-chrome.outputs.chrome-path }}" --version
-          "${{ steps.setup-chrome.outputs.chromedriver-path }}" --version
-
-      - name: Debug Chromium paths
-        run: |
-          echo "CHROME_BIN=$CHROME_BIN"
-          echo "CHROMEDRIVER_PATH=$CHROMEDRIVER_PATH"
-          which chromium || true
-          which google-chrome || true
-          ls -l /usr/bin/chromium* /usr/lib/chromium* /snap/bin/chromium /usr/bin/google-chrome* || true
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install -r requirements.txt
 
       - name: Build config.json from secrets
         env:
@@ -137,8 +106,24 @@ jobs:
           path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
           PY
 
-      - name: Run scheduled job
-        run: python -m rainyun.scheduler.cron_runner
+      - name: Build Docker image
+        run: |
+          docker build -t rainyun-qiandao:gha .
+
+      - name: Run scheduled job in Docker
+        run: |
+          mkdir -p logs
+          docker run --rm \
+            -e TZ="$TZ" \
+            -e DATA_PATH="/app/data/config.json" \
+            -e CHROME_LOW_MEMORY="$CHROME_LOW_MEMORY" \
+            -e CHROME_HEADLESS_MODE="$CHROME_HEADLESS_MODE" \
+            -e CHROMEDRIVER_LOG_PATH="$CHROMEDRIVER_LOG_PATH" \
+            -e LOG_LEVEL="$LOG_LEVEL" \
+            -e CRON_MODE="false" \
+            -v "$GITHUB_WORKSPACE/data:/app/data" \
+            -v "$GITHUB_WORKSPACE/logs:/logs" \
+            rainyun-qiandao:gha
 
       - name: Output chromedriver log on failure
         if: failure()

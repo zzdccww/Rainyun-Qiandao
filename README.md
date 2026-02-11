@@ -42,6 +42,7 @@
 
 - 定时触发使用 UTC 时间：`0 0 * * *` 即北京时间每天 08:00。
 - 也可在 Actions 页面手动触发 workflow_dispatch。
+- 当前 workflow 采用 **Docker 方式运行**：镜像由仓库内 Dockerfile 构建，单次运行后退出。
 
 ## 项目结构（简化）
 
@@ -58,12 +59,7 @@ rainyun/
 ## 常见问题
 
 ### 一键签到报 “Unable to obtain driver for chrome”
-请确认 workflow 已安装 chromium 与 chromium-driver，并设置：
-
-```
-CHROME_BIN=/usr/bin/chromium
-CHROMEDRIVER_PATH=/usr/bin/chromedriver
-```
+容器内已预装 chromium 与 chromium-driver。若仍报错，可检查 `CHROMEDRIVER_LOG_PATH` 日志输出。
 
 ### cookies 在哪里
 每个账号独立保存：`data/cookies/cookies_<account_id>.json`
