@@ -26,7 +26,15 @@ from .browser.locators import XPATH_CONFIG
 from .browser.pages import LoginPage, RewardPage
 from .browser.session import BrowserSession, RuntimeContext
 from .utils.http import download_bytes, download_to_file
-from .utils.image import decode_image_bytes, encode_image_bytes, normalize_gray, split_sprite_image
+from .utils.image import (
+    decode_image_bytes,
+    encode_image_bytes,
+    normalize_gray,
+    split_sprite_image,
+    preprocess_black_mask,
+    extract_black_regions,
+    rotate_image_and_bbox,
+)
 
 # 用户日志前缀（用于多账号区分）
 _LOG_USER_PREFIX = ""
@@ -180,6 +188,7 @@ class MatchResult:
     positions: list[tuple[int, int]]
     similarities: list[float]
     method: str
+    meta: dict[str, float] | None = None
 
 
 class CaptchaMatcher(Protocol):
@@ -248,28 +257,6 @@ class SiftMatcher:
             lambda sprite, spec: compute_sift_similarity(sprite, spec, self._sift),
             self.name,
         )
-
-
-class TemplateMatcher:
-    name = "template"
-
-    def match(
-        self,
-        background: np.ndarray,
-        sprites: list[np.ndarray],
-        bboxes: list[tuple[int, int, int, int]],
-    ) -> MatchResult | None:
-        return build_match_result(
-            background,
-            sprites,
-            bboxes,
-            compute_template_similarity,
-            self.name,
-        )
-
-
-def temp_path(ctx: RuntimeContext, filename: str) -> str:
-    return os.path.join(ctx.temp_dir, filename)
 
 
 def clear_temp_dir(temp_dir: str) -> None:
@@ -396,6 +383,148 @@ def compute_template_similarity(sprite: np.ndarray, spec: np.ndarray) -> float:
     return float(np.max(result))
 
 
+class TemplateMatcher:
+    name = "template"
+
+    def match(
+        self,
+        background: np.ndarray,
+        sprites: list[np.ndarray],
+        bboxes: list[tuple[int, int, int, int]],
+    ) -> MatchResult | None:
+        return build_match_result(
+            background,
+            sprites,
+            bboxes,
+            compute_template_similarity,
+            self.name,
+        )
+
+
+class IcrMatcher:
+    name = "icr"
+
+    def __init__(self, config: Config) -> None:
+        self._config = config
+
+    @staticmethod
+    def _binary_similarity(img1: np.ndarray, img2: np.ndarray) -> float:
+        if img1 is None or img2 is None or img1.size == 0 or img2.size == 0:
+            return 0.0
+        if img1.shape != img2.shape:
+            img1 = cv2.resize(img1, (img2.shape[1], img2.shape[0]))
+        mask1 = img1 > 127
+        mask2 = img2 > 127
+        total = mask1.size
+        if total == 0:
+            return 0.0
+        return float((mask1 == mask2).sum() / total)
+
+    def match(
+        self,
+        background: np.ndarray,
+        sprites: list[np.ndarray],
+        bboxes: list[tuple[int, int, int, int]],
+    ) -> MatchResult | None:
+        prefix = _get_log_prefix()
+        if background is None or background.size == 0:
+            return None
+        if len(sprites) != 3:
+            logger.warning(f"{prefix}ICR: 验证码小图数量异常: {len(sprites)}")
+            return None
+        threshold = 30
+        rotate_range = max(0, int(self._config.captcha_icr_rotate_range))
+        mask_bg = preprocess_black_mask(background, threshold=threshold, morph_kernel=2, iterations=1)
+        bg_regions = extract_black_regions(mask_bg, min_area=100, merged=True, merge_distance=2)
+        if not bg_regions:
+            logger.warning(f"{prefix}ICR: 背景黑色区域为空")
+            return None
+        best_positions: list[tuple[int, int] | None] = [None, None, None]
+        best_scores: list[float | None] = [None, None, None]
+        best_angles: list[float | None] = [None, None, None]
+        overall_best_score: float | None = None
+        overall_best_angle: float | None = None
+        for sprite_index, sprite in enumerate(sprites):
+            if sprite is None or sprite.size == 0:
+                continue
+            mask_sprite = preprocess_black_mask(sprite, threshold=threshold, morph_kernel=2, iterations=1)
+            sprite_regions = extract_black_regions(mask_sprite, min_area=30, merged=True, merge_distance=1)
+            if not sprite_regions:
+                logger.warning(f"{prefix}ICR: sprite {sprite_index + 1} 黑色区域为空")
+                continue
+            best_score = -1.0
+            best_position = None
+            best_angle = None
+            for (sx1, sy1, sx2, sy2) in sprite_regions:
+                sprite_roi = mask_sprite[sy1:sy2, sx1:sx2]
+                if sprite_roi.size == 0:
+                    continue
+                for angle in range(-rotate_range, rotate_range + 1):
+                    rotated_roi = rotate_image_and_bbox(sprite_roi, float(angle))
+                    if rotated_roi.size == 0:
+                        continue
+                    for (bx1, by1, bx2, by2) in bg_regions:
+                        bg_roi = mask_bg[by1:by2, bx1:bx2]
+                        if bg_roi.size == 0:
+                            continue
+                        target = bg_roi
+                        candidate = rotated_roi
+                        if candidate.shape[0] > target.shape[0] or candidate.shape[1] > target.shape[1]:
+                            scale = min(
+                                target.shape[1] / candidate.shape[1],
+                                target.shape[0] / candidate.shape[0],
+                            )
+                            if scale <= 0:
+                                continue
+                            new_size = (
+                                max(1, int(candidate.shape[1] * scale)),
+                                max(1, int(candidate.shape[0] * scale)),
+                            )
+                            candidate = cv2.resize(candidate, new_size)
+                        method = cv2.TM_CCOEFF_NORMED
+                        try:
+                            res = cv2.matchTemplate(target, candidate, method)
+                            score = float(np.max(res)) if res.size > 0 else 0.0
+                        except Exception:
+                            score = self._binary_similarity(candidate, target)
+                        if overall_best_score is None or score > overall_best_score:
+                            overall_best_score = score
+                            overall_best_angle = float(angle)
+                        if score > best_score:
+                            best_score = score
+                            best_angle = float(angle)
+                            center_x = int((bx1 + bx2) / 2)
+                            center_y = int((by1 + by2) / 2)
+                            best_position = (center_x, center_y)
+            if best_position is not None:
+                best_positions[sprite_index] = best_position
+                best_scores[sprite_index] = best_score
+                best_angles[sprite_index] = best_angle
+        if any(pos is None for pos in best_positions):
+            if overall_best_score is not None:
+                angle_info = (
+                    f"{overall_best_angle:.1f}" if overall_best_angle is not None else "未知"
+                )
+                logger.warning(
+                    f"{prefix}ICR: 未找到完整匹配结果，最佳相似度 {overall_best_score:.4f}，角度 {angle_info}"
+                )
+            else:
+                logger.warning(f"{prefix}ICR: 未找到完整匹配结果")
+            return None
+        angles = [angle for angle in best_angles if angle is not None]
+        best_similarity = max(score for score in best_scores if score is not None)
+        meta = {
+            "angle": float(sum(angles) / len(angles)) if angles else 0.0,
+            "best_similarity": float(best_similarity),
+        }
+        return MatchResult(
+            positions=[pos for pos in best_positions if pos is not None],
+            similarities=[float(score) if score is not None else 0.0 for score in best_scores],
+            method=self.name,
+            meta=meta,
+        )
+
+
 def build_match_result(
     background: np.ndarray,
     sprites: list[np.ndarray],
@@ -477,14 +606,25 @@ def build_match_result(
 
 def log_match_result(result: MatchResult) -> None:
     prefix = _get_log_prefix()
+    angle = None
+    best_similarity = None
+    if result.meta:
+        angle = result.meta.get("angle")
+        best_similarity = result.meta.get("best_similarity")
     for index, (position, similarity) in enumerate(zip(result.positions, result.similarities), start=1):
         x, y = position
+        extra_parts = []
+        if angle is not None:
+            extra_parts.append(f"角度：{angle:.1f}")
+        if best_similarity is not None:
+            extra_parts.append(f"最佳相似度：{best_similarity:.4f}")
+        extra = f"，{'，'.join(extra_parts)}" if extra_parts else ""
         logger.info(
-            f"{prefix}图案 {index} 位于 ({x},{y})，匹配率：{similarity:.4f}，策略：{result.method}"
+            f"{prefix}图案 {index} 位于 ({x},{y})，匹配率：{similarity:.4f}，策略：{result.method}{extra}"
         )
 
 
-def process_captcha(ctx: RuntimeContext, retry_count: int = 0):
+def process_captcha(ctx: RuntimeContext, scene: str = "default", retry_count: int = 0):
     """
     处理验证码逻辑（循环实现，避免递归栈溢出）
     - 整体重试上限由配置项 captcha_retry_limit 控制
@@ -507,7 +647,13 @@ def process_captcha(ctx: RuntimeContext, retry_count: int = 0):
             logger.error(f"{prefix}无法刷新验证码，放弃重试: {refresh_error}")
             return False
 
-    solver = StrategyCaptchaSolver([SiftMatcher(), TemplateMatcher()])
+    use_icr = bool(ctx.config.captcha_icr_enabled)
+    if ctx.config.captcha_icr_signin_only:
+        use_icr = use_icr and scene == "signin"
+    if use_icr:
+        solver = StrategyCaptchaSolver([IcrMatcher(ctx.config), SiftMatcher(), TemplateMatcher()])
+    else:
+        solver = StrategyCaptchaSolver([SiftMatcher(), TemplateMatcher()])
     current_retry = retry_count
     try:
         while True:
@@ -522,14 +668,19 @@ def process_captcha(ctx: RuntimeContext, retry_count: int = 0):
                 if check_captcha(ctx, captcha_image, sprites):
                     logger.info(f"{prefix}开始识别验证码 (第 {current_retry + 1} 次尝试)")
                     bboxes = detect_captcha_bboxes(ctx, captcha_bytes, captcha_image)
-                    if not bboxes:
+                    if not bboxes and not use_icr:
                         logger.error(f"{prefix}验证码检测失败，正在重试")
                         save_captcha_samples(captcha_image, sprites, config=ctx.config, reason="no_bboxes")
                     else:
+                        if not bboxes:
+                            logger.warning(f"{prefix}验证码检测结果为空，仍尝试 ICR 匹配")
                         result = solver.solve(captcha_image, sprites, bboxes)
                         if result:
                             log_match_result(result)
-                            if check_answer(result):
+                            min_similarity = ctx.config.captcha_min_similarity
+                            if result.method == "icr":
+                                min_similarity = ctx.config.captcha_icr_threshold
+                            if check_answer(result, min_similarity=min_similarity):
                                 for position in result.positions:
                                     slide_bg = ctx.wait.until(
                                         EC.visibility_of_element_located(XPATH_CONFIG["CAPTCHA_BG"])
