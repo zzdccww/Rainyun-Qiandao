@@ -207,7 +207,7 @@ class Config:
         captcha_retry_limit = 5
         captcha_retry_unlimited = False
         captcha_save_samples = False
-        captcha_icr_enabled = _read_bool(env, "CAPTCHA_ICR_ENABLED", False)
+        captcha_icr_enabled = _read_bool(env, "CAPTCHA_ICR_ENABLED", True)
         captcha_icr_rotate_range = _read_int(env, "CAPTCHA_ICR_ROTATE_RANGE", 45)
         captcha_icr_threshold = _read_float(env, "CAPTCHA_ICR_THRESHOLD", 0.35)
         captcha_min_similarity = _read_float(env, "CAPTCHA_MIN_SIMILARITY", 0.25)
