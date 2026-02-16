@@ -16,7 +16,7 @@ from rainyun.browser.session import RuntimeContext
 from rainyun.browser.urls import build_app_url
 
 logger = logging.getLogger(__name__)
-CaptchaHandler = Callable[[RuntimeContext], bool]
+CaptchaHandler = Callable[[RuntimeContext, str], bool]
 
 
 class LoginPage:
@@ -61,7 +61,7 @@ class LoginPage:
             self.ctx.wait.until(EC.visibility_of_element_located((By.ID, "tcaptcha_iframe_dy")))
             logger.warning(f"用户 {user_label} 触发验证码！")
             self.ctx.driver.switch_to.frame("tcaptcha_iframe_dy")
-            if not self.captcha_handler(self.ctx):
+            if not self.captcha_handler(self.ctx, scene="login"):
                 logger.error(f"用户 {user_label} 登录验证码识别失败")
                 return False
         except TimeoutException:
@@ -158,7 +158,7 @@ class RewardPage:
         logger.info(f"用户 {user_label} 处理验证码")
         try:
             self.ctx.wait.until(EC.frame_to_be_available_and_switch_to_it((By.ID, "tcaptcha_iframe_dy")))
-            if not self.captcha_handler(self.ctx):
+            if not self.captcha_handler(self.ctx, scene="signin"):
                 logger.error(
                     f"用户 {user_label} 验证码重试次数过多，签到失败。当前页面状态: {self.ctx.driver.current_url}"
                 )
