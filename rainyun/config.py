@@ -162,11 +162,6 @@ class Config:
     captcha_retry_limit: int
     captcha_retry_unlimited: bool
     captcha_save_samples: bool
-    captcha_icr_enabled: bool
-    captcha_icr_rotate_range: int
-    captcha_icr_threshold: float
-    captcha_min_similarity: float
-    captcha_icr_signin_only: bool
     request_timeout: int
     max_retries: int
     retry_delay: float
@@ -207,11 +202,6 @@ class Config:
         captcha_retry_limit = 5
         captcha_retry_unlimited = False
         captcha_save_samples = False
-        captcha_icr_enabled = _read_bool(env, "CAPTCHA_ICR_ENABLED", True)
-        captcha_icr_rotate_range = _read_int(env, "CAPTCHA_ICR_ROTATE_RANGE", 45)
-        captcha_icr_threshold = _read_float(env, "CAPTCHA_ICR_THRESHOLD", 0.35)
-        captcha_min_similarity = _read_float(env, "CAPTCHA_MIN_SIMILARITY", 0.25)
-        captcha_icr_signin_only = _read_bool(env, "CAPTCHA_ICR_SIGNIN_ONLY", True)
 
         request_timeout = 15
         max_retries = 3
@@ -252,11 +242,6 @@ class Config:
             captcha_retry_limit=captcha_retry_limit,
             captcha_retry_unlimited=captcha_retry_unlimited,
             captcha_save_samples=captcha_save_samples,
-            captcha_icr_enabled=captcha_icr_enabled,
-            captcha_icr_rotate_range=captcha_icr_rotate_range,
-            captcha_icr_threshold=captcha_icr_threshold,
-            captcha_min_similarity=captcha_min_similarity,
-            captcha_icr_signin_only=captcha_icr_signin_only,
             request_timeout=request_timeout,
             max_retries=max_retries,
             retry_delay=retry_delay,
@@ -300,19 +285,6 @@ class Config:
             payload.get("captcha_retry_unlimited"), base.captcha_retry_unlimited
         )
         captcha_save_samples = _coerce_bool_value(payload.get("captcha_save_samples"), base.captcha_save_samples)
-        captcha_icr_enabled = _coerce_bool_value(payload.get("captcha_icr_enabled"), base.captcha_icr_enabled)
-        captcha_icr_rotate_range = _coerce_int_value(
-            payload.get("captcha_icr_rotate_range"), base.captcha_icr_rotate_range
-        )
-        captcha_icr_threshold = _coerce_float_value(
-            payload.get("captcha_icr_threshold"), base.captcha_icr_threshold
-        )
-        captcha_min_similarity = _coerce_float_value(
-            payload.get("captcha_min_similarity"), base.captcha_min_similarity
-        )
-        captcha_icr_signin_only = _coerce_bool_value(
-            payload.get("captcha_icr_signin_only"), base.captcha_icr_signin_only
-        )
 
         request_timeout = _coerce_int_value(payload.get("request_timeout"), base.request_timeout)
         max_retries = _coerce_int_value(payload.get("max_retries"), base.max_retries)
@@ -371,11 +343,6 @@ class Config:
             captcha_retry_limit=captcha_retry_limit,
             captcha_retry_unlimited=captcha_retry_unlimited,
             captcha_save_samples=captcha_save_samples,
-            captcha_icr_enabled=captcha_icr_enabled,
-            captcha_icr_rotate_range=captcha_icr_rotate_range,
-            captcha_icr_threshold=captcha_icr_threshold,
-            captcha_min_similarity=captcha_min_similarity,
-            captcha_icr_signin_only=captcha_icr_signin_only,
             request_timeout=request_timeout,
             max_retries=max_retries,
             retry_delay=retry_delay,
@@ -420,11 +387,6 @@ class Config:
         captcha_retry_limit = base.captcha_retry_limit
         captcha_retry_unlimited = base.captcha_retry_unlimited
         captcha_save_samples = base.captcha_save_samples
-        captcha_icr_enabled = base.captcha_icr_enabled
-        captcha_icr_rotate_range = base.captcha_icr_rotate_range
-        captcha_icr_threshold = base.captcha_icr_threshold
-        captcha_min_similarity = base.captcha_min_similarity
-        captcha_icr_signin_only = base.captcha_icr_signin_only
         skip_push_title = base.skip_push_title
         push_config = DEFAULT_PUSH_CONFIG.copy()
         notify_channels: list[dict[str, Any]] = []
@@ -446,15 +408,6 @@ class Config:
                 settings, "captcha_retry_unlimited", captcha_retry_unlimited
             )
             captcha_save_samples = getattr(settings, "captcha_save_samples", captcha_save_samples)
-            captcha_icr_enabled = getattr(settings, "captcha_icr_enabled", captcha_icr_enabled)
-            captcha_icr_rotate_range = getattr(
-                settings, "captcha_icr_rotate_range", captcha_icr_rotate_range
-            )
-            captcha_icr_threshold = getattr(settings, "captcha_icr_threshold", captcha_icr_threshold)
-            captcha_min_similarity = getattr(settings, "captcha_min_similarity", captcha_min_similarity)
-            captcha_icr_signin_only = getattr(
-                settings, "captcha_icr_signin_only", captcha_icr_signin_only
-            )
             skip_push_title = getattr(settings, "skip_push_title", skip_push_title)
             notify_config = getattr(settings, "notify_config", None)
             if isinstance(notify_config, Mapping):
@@ -509,11 +462,6 @@ class Config:
             captcha_retry_limit=captcha_retry_limit,
             captcha_retry_unlimited=captcha_retry_unlimited,
             captcha_save_samples=captcha_save_samples,
-            captcha_icr_enabled=captcha_icr_enabled,
-            captcha_icr_rotate_range=captcha_icr_rotate_range,
-            captcha_icr_threshold=captcha_icr_threshold,
-            captcha_min_similarity=captcha_min_similarity,
-            captcha_icr_signin_only=captcha_icr_signin_only,
             skip_push_title=skip_push_title,
             push_config=push_config,
             notify_channels=notify_channels,
