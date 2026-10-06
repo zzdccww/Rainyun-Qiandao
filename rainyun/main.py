@@ -61,38 +61,14 @@ class LazyDdddOcr:
     def __init__(self, *, det: bool = False) -> None:
         self._det = det
         self._instance: ddddocr.DdddOcr | None = None
-        self._det_supported: bool | None = None
 
     def _ensure(self) -> ddddocr.DdddOcr:
         if self._instance is None:
-            try:
-                from PIL import Image
-
-                if not hasattr(Image, "ANTIALIAS") and hasattr(Image, "Resampling"):
-                    Image.ANTIALIAS = Image.Resampling.LANCZOS
-            except Exception:
-                pass
-            if self._det:
-                logging.getLogger(__name__).info(f"{_get_log_prefix()}初始化 ddddocr(det)")
-                try:
-                    self._instance = ddddocr.DdddOcr(det=True, show_ad=False)
-                    self._det_supported = True
-                except TypeError:
-                    try:
-                        self._instance = ddddocr.DdddOcr(det=True)
-                        self._det_supported = True
-                    except TypeError:
-                        self._instance = ddddocr.DdddOcr()
-                        self._det_supported = False
-            else:
-                logging.getLogger(__name__).info(f"{_get_log_prefix()}初始化 ddddocr(ocr)")
-                try:
-                    self._instance = ddddocr.DdddOcr(ocr=True, show_ad=False)
-                except TypeError:
-                    try:
-                        self._instance = ddddocr.DdddOcr(ocr=True)
-                    except TypeError:
-                        self._instance = ddddocr.DdddOcr()
+            mode = "det" if self._det else "ocr"
+            logger.info(f"{_get_log_prefix()}初始化 ddddocr({mode})")
+            self._instance = ddddocr.DdddOcr(
+                ocr=not self._det, det=self._det, show_ad=False
+            )
         return self._instance
 
     def classification(self, image_bytes: bytes):
@@ -103,12 +79,7 @@ class LazyDdddOcr:
     def detection(self, image_bytes: bytes):
         if not self._det:
             raise AttributeError("当前实例为 ocr 模式，无法调用 detection")
-        if self._det_supported is False:
-            raise AttributeError("当前 ddddocr 不支持 detection")
-        instance = self._ensure()
-        if not hasattr(instance, "detection"):
-            raise AttributeError("当前 ddddocr 不支持 detection")
-        return instance.detection(image_bytes)
+        return self._ensure().detection(image_bytes)
 
 try:
     from .notify import configure, send
@@ -217,10 +188,10 @@ class StrategyCaptchaSolver:
         prefix = _get_log_prefix()
         for matcher in self.matchers:
             result = matcher.match(background, sprites, bboxes)
-            if result:
+            if result and check_answer(result):
                 logger.info(f"{prefix}验证码匹配策略命中: {matcher.name}")
                 return result
-            logger.warning(f"{prefix}验证码匹配策略失败: {matcher.name}")
+            logger.warning(f"{prefix}验证码匹配策略未通过校验: {matcher.name}，尝试下一策略")
         return None
 
 
@@ -361,10 +332,6 @@ def detect_captcha_bboxes(
                 logger.info(f"{prefix}验证码检测成功({label}): {len(bboxes)} 个候选框")
                 return bboxes
             logger.warning(f"{prefix}验证码检测结果为空({label})")
-        except AttributeError as e:
-            if str(e) == "当前 ddddocr 不支持 detection":
-                return []
-            logger.warning(f"{prefix}验证码检测失败({label}): {e}")
         except Exception as e:
             logger.warning(f"{prefix}验证码检测失败({label}): {e}")
     return []
@@ -392,6 +359,9 @@ def compute_template_similarity(sprite: np.ndarray, spec: np.ndarray) -> float:
         return 0.0
     if sprite_gray.shape != spec_gray.shape:
         sprite_gray = cv2.resize(sprite_gray, (spec_gray.shape[1], spec_gray.shape[0]))
+    # 常量图没有可匹配的特征，OpenCV 却可能返回 1.0。
+    if np.std(sprite_gray) == 0 or np.std(spec_gray) == 0:
+        return 0.0
     result = cv2.matchTemplate(spec_gray, sprite_gray, cv2.TM_CCOEFF_NORMED)
     return float(np.max(result))
 
@@ -695,16 +665,19 @@ def check_captcha(ctx: RuntimeContext, captcha_image: np.ndarray, sprites: list[
 # 检查是否存在重复坐标,快速判断识别错误
 def check_answer(result: MatchResult, min_similarity: float = 0.25) -> bool:
     prefix = _get_log_prefix()
-    if not result.positions or len(result.positions) < 3:
+    if len(result.positions) != 3:
         logger.warning(
-            f"{prefix}验证码识别坐标不足，当前仅有 {len(result.positions) if result.positions else 0} 个"
+            f"{prefix}验证码识别坐标数量异常，期望 3，实际 {len(result.positions)}"
         )
         return False
-    if len(result.similarities) < 3:
-        logger.warning(f"{prefix}验证码匹配率不足，当前仅有 {len(result.similarities)} 个")
+    if len(result.similarities) != 3:
+        logger.warning(f"{prefix}验证码匹配率数量异常，期望 3，实际 {len(result.similarities)}")
         return False
     if len(result.positions) != len(set(result.positions)):
         logger.warning(f"{prefix}验证码识别坐标重复: {result.positions}")
+        return False
+    if not all(np.isfinite(score) for score in result.similarities):
+        logger.warning(f"{prefix}验证码匹配率包含非有限值，放弃提交")
         return False
     min_match = min(result.similarities) if result.similarities else 0.0
     if min_match < min_similarity:

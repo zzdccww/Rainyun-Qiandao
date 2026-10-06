@@ -163,6 +163,9 @@ def main() -> int:
                 logger.info("未启用任何账户，跳过通知")
         except Exception as notify_exc:
             logger.error("发送定时通知失败: %s", notify_exc)
+        if success < total or renew_success < renew_checked:
+            logger.error("定时任务存在失败账户，返回非零退出码")
+            return 1
         return 0
     except Exception as exc:
         logger.exception("定时任务执行失败: %s", exc)

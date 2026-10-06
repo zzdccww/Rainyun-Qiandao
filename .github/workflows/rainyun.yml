@@ -128,9 +128,10 @@ jobs:
       - name: Output chromedriver log on failure
         if: failure()
         run: |
-          if [ -f "$CHROMEDRIVER_LOG_PATH" ]; then
-            echo "chromedriver log found at $CHROMEDRIVER_LOG_PATH"
-            cat "$CHROMEDRIVER_LOG_PATH"
+          log_path="$GITHUB_WORKSPACE/logs/chromedriver.log"
+          if [ -f "$log_path" ]; then
+            echo "chromedriver log found at $log_path"
+            cat "$log_path"
           else
-            echo "chromedriver log not found at $CHROMEDRIVER_LOG_PATH"
+            echo "chromedriver log not found at $log_path"
           fi

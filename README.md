@@ -43,6 +43,11 @@
 - 定时触发使用 UTC 时间：`0 0 * * *` 即北京时间每天 08:00。
 - 也可在 Actions 页面手动触发 workflow_dispatch。
 - 当前 workflow 采用 **Docker 方式运行**：镜像由仓库内 Dockerfile 构建，单次运行后退出。
+- 签到或配置了 API Key 的续费检查失败时，任务返回非零退出码，Actions 会显示失败；未配置 API Key 的续费跳过不算失败。
+
+## 本地验证
+
+使用 Python 3.11 安装 `requirements.txt` 后，运行 `python -m unittest discover -s tests -v`。测试不登录真实账号、不执行续费、不发送通知。
 
 ## 项目结构（简化）
 
