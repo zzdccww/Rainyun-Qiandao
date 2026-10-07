@@ -57,6 +57,6 @@
 
 - 新增 8 项清理逻辑测试，覆盖截止时间边界、运行中/当前任务保护、分页调用、无效配置、重复删除和权限错误；总计 27 项测试通过。
 - workflow YAML、权限及 cleanup-only 配置检查通过。
-- 线上 cleanup-only 运行验证：待执行。
+- [线上 cleanup-only 运行 37552013243](https://github.com/zzdccww/Rainyun-Qiandao/actions/runs/37552013243)：清理 job 及步骤均成功，签到 job 已跳过；日志显示保留最近 7 天、删除 0 条（旧记录已在此前清理）。线上剩余 5 条记录，其中 1 条为本次清理验证，七天前的已完成记录为 0。实际自动 DELETE 分支由模拟测试覆盖，此次线上没有可删除目标。
 
 清理保留天数可在 workflow 的 `ACTIONS_RETENTION_DAYS` 中修改。撤销本次 workflow 改动可停止自动清理，已经删除的记录不能恢复。
