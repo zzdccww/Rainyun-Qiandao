@@ -2,12 +2,20 @@ name: Rainyun Checkin
 
 on:
   workflow_dispatch:
+    inputs:
+      cleanup_only:
+        description: Only clean up old Actions runs
+        type: boolean
+        default: false
   schedule:
     - cron: "0 0 * * *"
 
 jobs:
   run:
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.cleanup_only }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       TZ: Asia/Shanghai
       DATA_PATH: data/config.json
@@ -135,3 +143,47 @@ jobs:
           else
             echo "chromedriver log not found at $log_path"
           fi
+
+  cleanup:
+    name: Clean up old workflow runs
+    needs: run
+    if: always()
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      actions: write
+    env:
+      ACTIONS_RETENTION_DAYS: "7"
+    steps:
+      - name: Delete completed runs older than retention period
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const retentionDays = Number(process.env.ACTIONS_RETENTION_DAYS);
+            if (!Number.isInteger(retentionDays) || retentionDays < 1) {
+              throw new Error('ACTIONS_RETENTION_DAYS must be a positive integer');
+            }
+            const { owner, repo } = context.repo;
+            const { data: currentRun } = await github.rest.actions.getWorkflowRun({
+              owner, repo, run_id: context.runId,
+            });
+            const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              owner, repo, workflow_id: currentRun.workflow_id,
+              status: 'completed', per_page: 100,
+            });
+            let deleted = 0;
+            for (const run of runs) {
+              if (run.id === context.runId || run.status !== 'completed' ||
+                  !(Date.parse(run.created_at) < cutoff)) {
+                continue;
+              }
+              try {
+                await github.rest.actions.deleteWorkflowRun({ owner, repo, run_id: run.id });
+                deleted += 1;
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                core.info(`Run ${run.id} was already deleted`);
+              }
+            }
+            core.info(`Deleted ${deleted} completed runs; retained the last ${retentionDays} days`);

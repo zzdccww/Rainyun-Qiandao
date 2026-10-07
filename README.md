@@ -44,10 +44,12 @@
 - 也可在 Actions 页面手动触发 workflow_dispatch。
 - 当前 workflow 采用 **Docker 方式运行**：镜像由仓库内 Dockerfile 构建，单次运行后退出。
 - 签到或配置了 API Key 的续费检查失败时，任务返回非零退出码，Actions 会显示失败；未配置 API Key 的续费跳过不算失败。
+- 每次运行结束后自动删除本 workflow 中超过 7 天的已完成 Actions 记录（包括其日志和产物），保留当前任务和正在运行的任务。保留天数可通过 `.github/workflows/rainyun.yml` 中的 `ACTIONS_RETENTION_DAYS` 修改；清理失败不会影响签到结果。
+- 手动触发时可勾选 `cleanup_only`，仅清理旧记录，跳过签到、续费和通知。
 
 ## 本地验证
 
-使用 Python 3.11 安装 `requirements.txt` 后，运行 `python -m unittest discover -s tests -v`。测试不登录真实账号、不执行续费、不发送通知。
+使用 Python 3.11 安装 `requirements.txt` 后，运行 `python -m unittest discover -s tests -v`。workflow 清理逻辑测试还需要 Node.js，未安装时会跳过。测试不登录真实账号、不执行续费、不发送通知，也不删除真实 Actions 记录。
 
 ## 项目结构（简化）
 
